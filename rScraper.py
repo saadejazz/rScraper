@@ -1,4 +1,4 @@
-from .utils import scriptToJSON, datetimeFromTimestamp, get, preprocessCodes
+from .utils import scriptToJSON, datetimeFromTimestamp, get, preprocessCodes, posts
 from .codes import COUNTRY_CODES, TIME_CODES
 from bs4 import BeautifulSoup
 import json
@@ -29,72 +29,6 @@ def popularPosts(category = "hot", country = "everywhere", timePeriod = "now"):
     # extracting content from data block
     return posts(BeautifulSoup(get(url), "html.parser"))
 
-def posts(soup):
-    posts = []
-    script = soup.find('script', id = 'data')
-    if script:
-        script = scriptToJSON(script.text)
-    else:
-        return posts
-    script = json.loads(script)
-    try:
-        allPosts = script["posts"]["models"]
-    except (KeyError, TypeError):
-        print("Major Error")
-        return []
-    for p in allPosts.values():
-        post = {
-            "poster": {
-                "id": "",
-                "username": "",
-                "link": ""
-            },
-            "post_id": "",
-            "post_link": "",
-            "timestamp": "",
-            "subreddit": {
-                "id": "",
-                "name": "",
-                "link": "",
-            },
-            "is_promoted": False,
-            "text": "",
-            "media": "",
-            "statistics": {
-                "upvote_ratio": 0,
-                "num_comments": 0,
-                "num_crossposts": 0,
-                "score": 0
-            }
-        }
-        post["post_id"] = p.get("postId", '')
-        post["poster"]["id"] = p.get('authorId', '')
-        post["poster"]["username"] = p.get('author', '')
-        if post["poster"]["username"] != "":
-            post["poster"]["link"] = 'https://www.reddit.com/user/' + post["poster"]["username"]
-        post["text"] = p.get('title', '')
-        post["statistics"]["num_comments"] = p.get('numComments', 0)
-        post["statistics"]["num_crossposts"] = p.get('numCrossposts', 0)
-        post["statistics"]["score"] = p.get('score', 0)
-        post["statistics"]["upvote_ratio"] = p.get('upvoteRatio', 0)
-        post["post_link"] = p.get('permalink', '')
-        try:
-            if p["belongsTo"]["type"] == 'subreddit':
-                post["subreddit"]["id"] = p["belongsTo"]["id"]
-                post["subreddit"]["name"] = post["post_link"].partition("/r/")[2].partition("/")[0]
-                post["subreddit"]["link"] = "".join(post["post_link"].partition(f'/r/{post["subreddit"]["name"]}')[:-1])
-            elif p["belongsTo"]["type"] == 'profile':
-                post["is_promoted"] = True
-            post["media"] = p["media"]["content"]
-        except (KeyError, TypeError):
-            pass
-        ti = p.get('created')
-        if ti:
-            ti = round(ti/1000)
-            post["timestamp"] = datetimeFromTimestamp(ti)
-        posts.append(post)
-    return posts
-
 def subreddit(subreddit, category = "hot", timePeriod = "now"):
     # forming the url for scraping top posts
     url = 'https://www.reddit.com/r/'
@@ -122,7 +56,7 @@ def subreddit(subreddit, category = "hot", timePeriod = "now"):
         "description": "",
         "num_subscribers": 0,
         "currently_active": 0,
-        "timestamp": "",
+        "timestamp_created": "",
         "icon_media_directory": "",
         "num_moderators": 0,
         "top_moderators": [],
@@ -142,7 +76,7 @@ def subreddit(subreddit, category = "hot", timePeriod = "now"):
             basic["category"] = g.get('advertiserCategory', '')
             basic["num_subscribers"] = g.get('subscribers', 0)
             basic["description"] = g.get('publicDescription', '')
-            basic["timestamp"] = datetimeFromTimestamp(g.get('created'))
+            basic["timestamp_created"] = datetimeFromTimestamp(g.get('created'))
             basic["currently_active"] = g.get('accountsActive', 0)
         g = sub.get('models')
         if g:
@@ -175,4 +109,129 @@ def subreddit(subreddit, category = "hot", timePeriod = "now"):
     # extracting content from data block
     basic["posts"] = posts(soup)
 
+    return basic
+
+def user(username, category = "hot", timePeriod = "now"):
+    # forming the url for scraping top posts
+    url = 'https://www.reddit.com/user/'
+    url += f'{username}/posts/'
+    if category in ["hot", "new", "top", "rising"]:
+        url += f'?sort={category}'
+        if category == "top":
+            timePeriod = preprocessCodes(timePeriod)
+            if timePeriod in TIME_CODES:
+                url = f'{url}&t={TIME_CODES[timePeriod]}'
+            else:
+                print("Invalid time period. Resorting to default.")
+    else:
+        print("Invalid Category. Choose either of hot, new, top, rising")
+        return []
+    print("Fetching results from: ", url)
+
+    # extracting data
+    basic = {
+        "id": "",
+        "username": "",
+        "url": "",
+        "description": "",
+        "icon_media_directory": "",
+        "timestamp_created": "",
+        "karma_points": {
+            "comment_karma": 0,
+            "post_karma": 0
+        },
+        "birthday": "",
+        "subscribers": 0,
+        "custom_feeds": [],
+        "subreddits": [],
+        "posts": []
+    }
+    soup = BeautifulSoup(get(url), "html.parser")
+    s = soup.find('script', id = 'data')
+    if s:
+        k = json.loads(scriptToJSON(s.text))
+    else:
+        return basic
+    g = soup.find('span', id = 'profile--id-card--highlight-tooltip--cakeday')
+    if g:
+        basic["birthday"] = g.text
+    pk = k.get('profiles')
+    if pk:
+        pr = pk.get('about')
+        if pr:
+            pr = list(pr.values())[0]
+            basic["description"] = pr.get('publicDescription', '')
+            basic["karma_points"]["comment_karma"] = pr.get('commentKarma', 0)
+            basic["karma_points"]["post_karma"] = pr.get('postKarma', 0)
+            pr = pk.get('models')
+            if pr:
+                pr = list(pr.values())[0]
+                basic["username"] = pr.get("name", "")
+                basic["url"] = "https://www.reddit.com" + pr.get('url', "")
+                g = pr.get('icon')
+                if g:
+                    basic["icon_media_directory"] = g.get('url', '')
+                basic["subscribers"] = pr.get('subscribers', 0)
+    pr = k.get('multireddits')
+    if pr:
+        pid = pr.get('byUserId')
+        if pid:
+            basic["id"] = list(pid.keys())[0]
+        pr = pr.get('models')
+        if pr:
+            for p in pr.values():
+                feed = {
+                    "name": "",
+                    "url": "",
+                    "icon_media_directory": "",
+                    "num_subreddits": 0,
+                    "num_followers": 0,
+                    "timestamp_created": "",
+                    "visibility": ""
+                }
+                feed["name"] = p.get("name", "")
+                feed["url"] = "https://www.reddit.com" + p.get("url", "")
+                feed["icon_media_directory"] = p.get('icon', "")
+                feed["num_subreddits"] = p.get("subredditCount", 0)
+                feed["num_followers"] = p.get("followerCount", 0)
+                feed["visibility"] = p.get("visibility", "")
+                pk = p.get('created')
+                if pk:
+                    feed["timestamp_created"] = datetimeFromTimestamp(pk)
+                basic["custom_feeds"].append(feed)
+    pr = k.get("users")
+    if pr:
+        pr = pr.get("models")
+        if pr:
+            pr = list(pr.values())[0]
+            pr = pr.get('created')
+            if pr:
+                basic["timestamp_created"] = datetimeFromTimestamp(pr)
+    pr = k.get('subreddits')
+    if pr:
+        pr = pr.get('models')
+        if pr:
+            for m in pr.values():
+                sub = {
+                    "id": "",
+                    "name": "",
+                    "url": "",
+                    "icon_media_directory": "",
+                    "title": "",
+                    "num_subscribers": 0,
+                    "type": ""
+                }
+                sub["id"] = m.get("id", "")
+                sub["name"] = m.get("name", "")
+                sub["url"] = "https://www.reddit.com" + m.get("url", "")
+                g = m.get('icon')
+                if g:
+                    sub["icon_media_directory"] = g.get('url', "")
+                if sub["icon_media_directory"] == "":
+                    sub["icon_media_directory"] = m.get("communityIcon", "")
+                sub["title"] = m.get("title", "")
+                sub["num_subscribers"] = m.get("subscribers", 0)
+                sub["type"] = m.get("type", "")
+                basic["subreddits"].append(sub)
+    basic["posts"] = posts(soup)
     return basic
