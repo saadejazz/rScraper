@@ -1,5 +1,6 @@
 from .utils import scriptToJSON, datetimeFromTimestamp, get, preprocessCodes, posts
 from .codes import COUNTRY_CODES, TIME_CODES
+from urllib.parse import quote
 from bs4 import BeautifulSoup
 import json
 
@@ -62,7 +63,7 @@ def subreddit(subreddit, category = "hot", timePeriod = "now"):
         "top_moderators": [],
         "posts": []
     }
-    soup = BeautifulSoup(get(f'{url}wiki/index'), "html.parser")
+    soup = BeautifulSoup(get(url), "html.parser")
     s = soup.find('script', id = 'data')
     if s:
         k = json.loads(scriptToJSON(s.text))
@@ -85,9 +86,11 @@ def subreddit(subreddit, category = "hot", timePeriod = "now"):
             basic["name"] = g.get('name', '')
             basic["id"] = g.get('id', '')
             basic["url"] = "https://www.reddit.com" +  g.get('url', '')
-            g = g.get('icon')
-            if g:
-                basic["icon_media_directory"] = g.get("url", '')
+            p = g.get('icon')
+            if p:
+                basic["icon_media_directory"] = p.get("url", '')
+            if basic["icon_media_directory"] == '':
+                basic["icon_media_directory"] = g.get("communityIcon", "")
     sub = k.get('widgets')
     if sub:
         sub = sub.get('models')
@@ -131,6 +134,7 @@ def user(username, category = "hot", timePeriod = "now"):
     # extracting data
     basic = {
         "id": "",
+        "profile_id": "",
         "username": "",
         "url": "",
         "description": "",
@@ -140,7 +144,6 @@ def user(username, category = "hot", timePeriod = "now"):
             "comment_karma": 0,
             "post_karma": 0
         },
-        "birthday": "",
         "subscribers": 0,
         "custom_feeds": [],
         "subreddits": [],
@@ -152,9 +155,6 @@ def user(username, category = "hot", timePeriod = "now"):
         k = json.loads(scriptToJSON(s.text))
     else:
         return basic
-    g = soup.find('span', id = 'profile--id-card--highlight-tooltip--cakeday')
-    if g:
-        basic["birthday"] = g.text
     pk = k.get('profiles')
     if pk:
         pr = pk.get('about')
@@ -167,16 +167,16 @@ def user(username, category = "hot", timePeriod = "now"):
             if pr:
                 pr = list(pr.values())[0]
                 basic["username"] = pr.get("name", "")
+                basic["profile_id"] = pr.get("id", "")
                 basic["url"] = "https://www.reddit.com" + pr.get('url', "")
                 g = pr.get('icon')
                 if g:
                     basic["icon_media_directory"] = g.get('url', '')
+                if basic["icon_media_directory"] == '':
+                    basic["icon_media_directory"] = pr.get("communityIcon", "")
                 basic["subscribers"] = pr.get('subscribers', 0)
     pr = k.get('multireddits')
     if pr:
-        pid = pr.get('byUserId')
-        if pid:
-            basic["id"] = list(pid.keys())[0]
         pr = pr.get('models')
         if pr:
             for p in pr.values():
@@ -192,6 +192,8 @@ def user(username, category = "hot", timePeriod = "now"):
                 feed["name"] = p.get("name", "")
                 feed["url"] = "https://www.reddit.com" + p.get("url", "")
                 feed["icon_media_directory"] = p.get('icon', "")
+                if feed["icon_media_directory"] == '':
+                    feed["icon_media_directory"] = p.get("communityIcon", "")
                 feed["num_subreddits"] = p.get("subredditCount", 0)
                 feed["num_followers"] = p.get("followerCount", 0)
                 feed["visibility"] = p.get("visibility", "")
@@ -204,6 +206,7 @@ def user(username, category = "hot", timePeriod = "now"):
         pr = pr.get("models")
         if pr:
             pr = list(pr.values())[0]
+            basic["id"] = pr.get("id", "")
             pr = pr.get('created')
             if pr:
                 basic["timestamp_created"] = datetimeFromTimestamp(pr)
@@ -235,3 +238,86 @@ def user(username, category = "hot", timePeriod = "now"):
                 basic["subreddits"].append(sub)
     basic["posts"] = posts(soup)
     return basic
+
+def smartSearch(username):
+    url = 'https://www.reddit.com/user/'
+    url += f'{username}/posts/'
+    basic = {
+        "id": "",
+        "username": "",
+        "url": "",
+        "media_directory": ""
+    }
+    soup = BeautifulSoup(get(url), "html.parser")
+    s = soup.find('script', id = 'data')
+    if s:
+        k = json.loads(scriptToJSON(s.text))
+    else:
+        return basic
+    pr = k.get('users')
+    if pr:
+        pid = pr.get('models')
+        if pid:
+            pid = list(pid.values())[0]
+            basic["id"] = pid.get("id", "")
+    pr = k.get('profiles')
+    if pr:
+        pr = pr.get('models')
+        if pr:
+            pr = list(pr.values())[0]
+            basic["username"] = pr.get("name", "")
+            basic["url"] = "https://www.reddit.com" + pr.get('url', "")
+            g = pr.get('icon')
+            if g:
+                basic["media_directory"] = g.get('url', '')
+            if basic["media_directory"] == "":
+                basic["media_directory"] = pr.get("communityIcon")
+    return basic
+
+def search(query, entityType = 'communities'):
+    query = quote(query)
+    results = []
+    if entityType == 'communities':
+        url = f'https://www.reddit.com/search/?q={query}&type=sr%2Cuser'
+        soup = BeautifulSoup(get(url), "html.parser")
+        s = soup.find('script', id = 'data')
+        if s:
+            k = json.loads(scriptToJSON(s.text))
+        else:
+            return results
+        try:
+            models = k["subreddits"]["models"]
+        except (KeyError, TypeError):
+            return results
+        for a in models.values():
+            result = {
+                "id": "",
+                "username": "",
+                "url": "",
+                "icon_media_directory": "",
+                "num_subscribers": 0,
+                "type": ""
+            }
+            result["id"] = a.get("id", "")
+            result["username"] = a.get("name", "")
+            result["url"] = "https://www.reddit.com" + a.get("url", "")
+            result["num_subscribers"] = a.get("subscribers", 0)
+            result["type"] = a.get("type", "")
+            b = a.get("icon")
+            if b:
+                result["icon_media_directory"] = b.get("url", "")
+            if result["icon_media_directory"] == '':
+                result["icon_media_directory"] = a.get("communityIcon", "")
+            results.append(result)
+    elif entityType == 'posts':
+        url = f'https://www.reddit.com/search/?q={query}&type=link'
+        soup = BeautifulSoup(get(url), "html.parser")
+        s = soup.find('script', id = 'data')
+        if s:
+            k = json.loads(scriptToJSON(s.text))
+        else:
+            return results
+        results = posts(soup)
+    else:
+        print("Wrong Entity Type. Select one of 'posts' or 'communities'")
+    return results
