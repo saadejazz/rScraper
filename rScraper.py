@@ -239,39 +239,64 @@ def user(username, category = "hot", timePeriod = "now"):
     basic["posts"] = posts(soup)
     return basic
 
-def smartSearch(username):
-    url = 'https://www.reddit.com/user/'
-    url += f'{username}/posts/'
+def smartSearch(username = None, subreddit = None):
     basic = {
-        "id": "",
-        "username": "",
-        "url": "",
-        "media_directory": ""
+            "id": "",
+            "username": "",
+            "url": "",
+            "media_directory": ""
     }
-    soup = BeautifulSoup(get(url), "html.parser")
-    s = soup.find('script', id = 'data')
-    if s:
-        k = json.loads(scriptToJSON(s.text))
-    else:
-        return basic
-    pr = k.get('users')
-    if pr:
-        pid = pr.get('models')
-        if pid:
-            pid = list(pid.values())[0]
-            basic["id"] = pid.get("id", "")
-    pr = k.get('profiles')
-    if pr:
-        pr = pr.get('models')
+    if username is not None:
+        url = 'https://www.reddit.com/user/'
+        url += f'{username}/posts/'
+        soup = BeautifulSoup(get(url), "html.parser")
+        s = soup.find('script', id = 'data')
+        if s:
+            k = json.loads(scriptToJSON(s.text))
+        else:
+            return basic
+        pr = k.get('users')
         if pr:
-            pr = list(pr.values())[0]
-            basic["username"] = pr.get("name", "")
-            basic["url"] = "https://www.reddit.com" + pr.get('url', "")
-            g = pr.get('icon')
+            pid = pr.get('models')
+            if pid:
+                pid = list(pid.values())[0]
+                basic["id"] = pid.get("id", "")
+        pr = k.get('profiles')
+        if pr:
+            pr = pr.get('models')
+            if pr:
+                pr = list(pr.values())[0]
+                basic["username"] = pr.get("name", "")
+                basic["url"] = "https://www.reddit.com" + pr.get('url', "")
+                g = pr.get('icon')
+                if g:
+                    basic["media_directory"] = g.get('url', '')
+                if basic["media_directory"] == "":
+                    basic["media_directory"] = pr.get("communityIcon")
+    elif subreddit is not None:
+        url = 'https://www.reddit.com/r/'
+        url += f'{subreddit}/'
+        soup = BeautifulSoup(get(url), "html.parser")
+        s = soup.find('script', id = 'data')
+        if s:
+            k = json.loads(scriptToJSON(s.text))
+        else:
+            return basic
+        sub = k.get('subreddits')
+        if sub:
+            g = sub.get('models')
             if g:
-                basic["media_directory"] = g.get('url', '')
-            if basic["media_directory"] == "":
-                basic["media_directory"] = pr.get("communityIcon")
+                g = list(g.values())[0]
+                basic["username"] = g.get('name', '')
+                basic["id"] = g.get('id', '')
+                basic["url"] = "https://www.reddit.com" +  g.get('url', '')
+                p = g.get('icon')
+                if p:
+                    basic["media_directory"] = p.get("url", '')
+                if basic["media_directory"] == '':
+                    basic["media_directory"] = g.get("communityIcon", "")
+    else:
+        print("Provide one of username or subreddit")
     return basic
 
 def search(query, entityType = 'communities'):

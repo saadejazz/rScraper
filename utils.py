@@ -88,6 +88,8 @@ def posts(soup):
         post["statistics"]["score"] = p.get('score', 0)
         post["statistics"]["upvote_ratio"] = p.get('upvoteRatio', 0)
         post["categories"] = p.get('contentCategories', [])
+        if post["categories"] is None:
+            post["categories"] = []
         post["post_link"] = p.get('permalink', '')
         if p.get('distinguishType') == 'moderator':
             post["is_posted_by_moderator"] = True
