@@ -32,6 +32,7 @@ Following types of data can be scraped:
 
   results = popularPosts(category = "top", timePeriod = "All Time")
   # another variant
+  # all possible categories are: "hot"(country as sub-category), "top"(timePeriod as subcategory), "new", "rising".
   # results = popularPosts(category = "hot", country = "United Kingdom")
   print(results)
   ```
@@ -74,7 +75,7 @@ Following types of data can be scraped:
      'num_crossposts': 0,
      'score': 0}},....]
   ```
-  **Note:** All possible values of *category*, *country*, and *timePeriod* are in the file *codes.py*.  
+  **Note:** All possible values of *country* and *timePeriod* are in the file *codes.py*.  
 
 * Scrape a subreddit. 
 
