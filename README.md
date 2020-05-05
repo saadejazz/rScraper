@@ -186,7 +186,6 @@ Following types of data can be scraped:
   {'id': 't5_2t2vo',
    'username': 'greysanatomy',
    'url': 'https://www.reddit.com/r/greysanatomy/',
-   'media_directory': '',
    'media_directory': 'https://b.thumbs.redditmedia.com/ss0L-8MRW23gOdqu_hEAqs7MgGLZgE3j4N-ur4eRK7A.png'}
   ```
 
