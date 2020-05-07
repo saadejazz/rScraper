@@ -243,8 +243,9 @@ def smartSearch(username = None, subreddit = None):
     basic = {
             "id": "",
             "username": "",
+            "full_name": "",
             "url": "",
-            "media_directory": ""
+            "picture_url": ""
     }
     if username is not None:
         url = 'https://www.reddit.com/user/'
@@ -270,9 +271,9 @@ def smartSearch(username = None, subreddit = None):
                 basic["url"] = "https://www.reddit.com" + pr.get('url', "")
                 g = pr.get('icon')
                 if g:
-                    basic["media_directory"] = g.get('url', '')
-                if basic["media_directory"] == "":
-                    basic["media_directory"] = pr.get("communityIcon")
+                    basic["picture_url"] = g.get('url', '')
+                if basic["picture_url"] == "":
+                    basic["picture_url"] = pr.get("communityIcon")
     elif subreddit is not None:
         url = 'https://www.reddit.com/r/'
         url += f'{subreddit}/'
@@ -292,9 +293,9 @@ def smartSearch(username = None, subreddit = None):
                 basic["url"] = "https://www.reddit.com" +  g.get('url', '')
                 p = g.get('icon')
                 if p:
-                    basic["media_directory"] = p.get("url", '')
-                if basic["media_directory"] == '':
-                    basic["media_directory"] = g.get("communityIcon", "")
+                    basic["picture_url"] = p.get("url", '')
+                if basic["picture_url"] == '':
+                    basic["picture_url"] = g.get("communityIcon", "")
     else:
         print("Provide one of username or subreddit")
     return basic
@@ -319,7 +320,8 @@ def search(query, entityType = 'communities'):
                 "id": "",
                 "username": "",
                 "url": "",
-                "icon_media_directory": "",
+                "full_name": "",
+                "picture_url": "",
                 "num_subscribers": 0,
                 "type": ""
             }
@@ -330,9 +332,9 @@ def search(query, entityType = 'communities'):
             result["type"] = a.get("type", "")
             b = a.get("icon")
             if b:
-                result["icon_media_directory"] = b.get("url", "")
-            if result["icon_media_directory"] == '':
-                result["icon_media_directory"] = a.get("communityIcon", "")
+                result["picture_url"] = b.get("url", "")
+            if result["picture_url"] == '':
+                result["picture_url"] = a.get("communityIcon", "")
             results.append(result)
     elif entityType == 'posts':
         url = f'https://www.reddit.com/search/?q={query}&type=link'
@@ -345,4 +347,7 @@ def search(query, entityType = 'communities'):
         results = posts(soup)
     else:
         print("Wrong Entity Type. Select one of 'posts' or 'communities'")
-    return results
+    return {
+        "site": "reddit",
+        "data": results
+    }
